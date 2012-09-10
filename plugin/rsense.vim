@@ -11,6 +11,10 @@ if !exists('g:rsenseUseOmniFunc')
     let g:rsenseUseOmniFunc = 0
 endif
 
+if !exists('g:rsenseMatchFunc')
+    let g:rsenseMatchFunc = ".*"
+endif
+
 " Check vimproc.
 let s:is_vimproc = exists('*vimproc#system')
 
@@ -69,7 +73,10 @@ function! RSenseCompleteFunction(findstart, base)
                     let dict['menu'] = ary[3]
                     let dict['kind'] = s:rsenseCompletionKindDictionary[ary[4]]
                 endif
-                call add(completions, dict)
+
+                if match( dict['word'], g:rsenseMatchFunc ) != -1
+                  call add(completions, dict)
+                endif
             endif
         endfor
         return completions
