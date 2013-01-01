@@ -3,65 +3,71 @@ if exists('g:loaded_rsense')
 endif
 let g:loaded_rsense = 1
 
+" initialize"{{{
 if !exists('g:rsense_home')
   let g:rsense_home = expand("~/src/rsense")
 endif
 
-if !exists('g:rsenseUseOmniFunc')
-  let g:rsenseUseOmniFunc = 0
+let s:rsense_completion_kind_dictionary = {'CLASS': 'C', 'MODULE': 'M', 'CONSTANT': 'c', 'METHOD': 'm'}
+
+if !exists('g:rsense_use_omnifunc')
+  let g:rsense_use_omnifunc = 0
 endif
 
-if !exists('g:rsenseMatchFunc')
-  let g:rsenseMatchFunc = ".*"
+if !exists('g:rsense_match_func')
+  let g:rsense_match_func = '[^. *\t]\.\w*\|\h\w*::'
 endif
+
+let s:rsense_dir_name = "rsense-0.3"
 
 " Check vimproc.
 let s:is_vimproc = exists('*vimproc#system')
+"}}}
 
-function! s:system(str, ...)"{{{
-  return s:is_vimproc ? (a:0 == 0 ? vimproc#system(a:str) : vimproc#system(a:str, join(a:000)))
+function! s:system(str, ...) "{{{
+  return s:is_vimproc ?
+        \ (a:0 == 0 ? vimproc#system(a:str) : vimproc#system(a:str, join(a:000)))
         \: (a:0 == 0 ? system(a:str) : system(a:str, join(a:000)))
-endfunction"}}}
+endfunction "}}}
 
-let s:rsenseCompletionKindDictionary = {'CLASS': 'C', 'MODULE': 'M', 'CONSTANT': 'c', 'METHOD': 'm'}
+function! s:rsense_program() "{{{
+  let bundle_dir = neobundle#get_neobundle_dir()
+  return bundle_dir . '/' . s:rsense_dir_name . '/bin/rsense'
+endfunction "}}}
 
-function! s:rsenseProgram()
-  return g:rsense_home . '/bin/rsense'
-endfunction
-
-function! s:rsenseCommand(args)
+function! s:rsense_command(args) "{{{
   for i in range(0, len(a:args) - 1)
     let a:args[i] = shellescape(a:args[i])
   endfor
   return s:system(printf('ruby %s %s %s',
-        \ shellescape(s:rsenseProgram()),
+        \ shellescape(s:rsense_program()),
         \ join(a:args, ' '),
         \ shellescape('--detect-project=' . bufname('%'))))
-endfunction
+endfunction"}}}
 
-function! s:rsenseCurrentBufferFile()
+function! s:rsense_current_buffer_file() "{{{
   let buf = getline(1, '$')
   let file = tempname()
   call writefile(buf, file)
   return file
-endfunction
+endfunction"}}}
 
-function! s:rsenseCurrentBufferFileOption()
-  return '--file=' . s:rsenseCurrentBufferFile()
-endfunction
+function! s:rsense_current_buffer_fileOption() "{{{
+  return '--file=' . s:rsense_current_buffer_file()
+endfunction"}}}
 
-function! s:rsenseCurrentLocationOption()
+function! s:rsense_current_location_option() "{{{
   return printf('--location=%s:%s', line('.'), col('.') - (mode() == 'n' ? 0 : 1))
-endfunction
+endfunction"}}}
 
-function! RSenseCompleteFunction(findstart, base)
+function! RSenseCompleteFunction(findstart, base) "{{{
   if a:findstart
     let cur_text = strpart(getline('.'), 0, col('.') - 1)
     return match(cur_text, '[^\.:]*$')
   else
-    let result = split(s:rsenseCommand(['code-completion',
-          \ s:rsenseCurrentBufferFileOption(),
-          \ s:rsenseCurrentLocationOption(),
+    let result = split(s:rsense_command(['code-completion',
+          \ s:rsense_current_buffer_fileOption(),
+          \ s:rsense_current_location_option(),
           \ '--prefix=' . a:base]),
           \ "\n")
     let completions = []
@@ -71,20 +77,20 @@ function! RSenseCompleteFunction(findstart, base)
         let dict = { 'word': ary[1] }
         if len(ary) > 4
           let dict['menu'] = ary[3]
-          let dict['kind'] = s:rsenseCompletionKindDictionary[ary[4]]
+          let dict['kind'] = s:rsense_completion_kind_dictionary[ary[4]]
         endif
 
-        if match( dict['word'], g:rsenseMatchFunc ) != -1
+        if match( dict['word'], g:rsense_match_func ) != -1
           call add(completions, dict)
         endif
       endif
     endfor
     return completions
   endif
-endfunction
+endfunction"}}}
 
-function! RSenseTypeHelp()
-  let result = split(s:rsenseCommand(['type-inference', s:rsenseCurrentBufferFileOption(), s:rsenseCurrentLocationOption()]), "\n")
+function! RSenseTypeHelp() "{{{
+  let result = split(s:rsense_command(['type-inference', s:rsense_current_buffer_fileOption(), s:rsense_current_location_option()]), "\n")
   let types = []
   for item in result
     if item =~ '^type: '
@@ -92,13 +98,13 @@ function! RSenseTypeHelp()
     endif
   endfor
   return len(types) == 0 ? 'No type information' : join(types, ' | ')
-endfunction
+endfunction"}}}
 
-function! RSenseJumpToDefinition()
-  let tempfile = s:rsenseCurrentBufferFile()
-  let result = split(s:rsenseCommand(['find-definition',
+function! RSenseJumpToDefinition() "{{{
+  let tempfile = s:rsense_current_buffer_file()
+  let result = split(s:rsense_command(['find-definition',
         \ '--file=' . tempfile,
-        \ s:rsenseCurrentLocationOption()]),
+        \ s:rsense_current_location_option()]),
         \ "\n")
   for item in result
     " TODO selection interface
@@ -115,10 +121,10 @@ function! RSenseJumpToDefinition()
     endif
   endfor
   echo 'No definition found'
-endfunction
+endfunction"}}}
 
-function! RSenseWhereIs()
-  let result = split(s:rsenseCommand(['where', s:rsenseCurrentBufferFileOption(), '--line=' . line('.')]), "\n")
+function! RSenseWhereIs() "{{{
+  let result = split(s:rsense_command(['where', s:rsense_current_buffer_fileOption(), '--line=' . line('.')]), "\n")
   for item in result
     if item =~ '^name: '
       echo split(item, ' ')[1]
@@ -126,40 +132,41 @@ function! RSenseWhereIs()
     endif
   endfor
   echo 'Unknown'
-endfunction
+endfunction"}}}
 
-function! RSenseVersion()
-  return s:rsenseCommand(['version'])
-endfunction
+function! RSenseVersion() "{{{
+  return s:rsense_command(['version'])
+endfunction"}}}
 
-function! RSenseServiceStart()
-  return s:rsenseCommand(['service', 'start'])
-endfunction
+function! RSenseServiceStart() "{{{
+  return s:rsense_command(['service', 'start'])
+endfunction"}}}
 
-function! RSenseServiceStop()
-  return s:rsenseCommand(['service', 'stop'])
-endfunction
+function! RSenseServiceStop() "{{{
+  return s:rsense_command(['service', 'stop'])
+endfunction"}}}
 
-function! RSenseServiceStatus()
-  return s:rsenseCommand(['service', 'status'])
-endfunction
+function! RSenseServiceStatus() "{{{
+  return s:rsense_command(['service', 'status'])
+endfunction"}}}
 
-function! RSenseOpenProject(directory)
-  call s:rsenseCommand(['open-project', expand(a:directory)])
-endfunction
+function! RSenseOpenProject(directory) "{{{
+  call s:rsense_command(['open-project', expand(a:directory)])
+endfunction"}}}
 
-function! RSenseCloseProject(project)
-  call s:rsenseCommand(['close-project', expand(a:project)])
-endfunction
+function! RSenseCloseProject(project) "{{{
+  call s:rsense_command(['close-project', expand(a:project)])
+endfunction"}}}
 
-function! RSenseClear()
-  call s:rsenseCommand(['clear'])
-endfunction
+function! RSenseClear() "{{{
+  call s:rsense_command(['clear'])
+endfunction"}}}
 
-function! RSenseExit()
-  call s:rsenseCommand(['exit'])
-endfunction
+function! RSenseExit() "{{{
+  call s:rsense_command(['exit'])
+endfunction"}}}
 
+" define commands"{{{
 command! -narg=0 RSenseTypeHelp         echo RSenseTypeHelp()
 command! -narg=0 RSenseJumpToDefinition call RSenseJumpToDefinition()
 command! -narg=0 RSenseWhereIs          call RSenseWhereIs()
@@ -171,9 +178,10 @@ command! -narg=0 RSenseClear            call RSenseClear()
 command! -narg=0 RSenseExit             call RSenseExit()
 command! -narg=1 RSenseOpenProject      call RSenseOpenProject('<args>')
 command! -narg=1 RSenseCloseProject     call RSenseCloseProject('<args>')
+"}}}
 
 function! SetupRSense()
-  if g:rsenseUseOmniFunc
+  if g:rsense_use_omnifunc
     setlocal omnifunc=RSenseCompleteFunction
   else
     setlocal completefunc=RSenseCompleteFunction
