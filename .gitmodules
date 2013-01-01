@@ -1,0 +1,3 @@
+[submodule "rsense-0.3"]
+  path = rsense-0.3
+  url = https://github.com/taichouchou2/rsense-0.3.git
